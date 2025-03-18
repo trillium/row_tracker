@@ -44,7 +44,7 @@ export default async function Home() {
   );
 }
 
-export async function Footer() {
+async function Footer() {
   return (
     <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
       <a
