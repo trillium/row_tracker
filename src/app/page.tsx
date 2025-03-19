@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { countLines } from "../lib/countLines";
 import Footer from "@/components/ui/footer";
 
@@ -17,13 +18,19 @@ export default async function Home() {
   const rows = await countLines();
 
   const daysPassedThisYear = getDaysPassedThisYear(today);
+  const rowBoolean = !!(daysPassedThisYear - rows);
 
   return (
     <div className="grid grid-rows-[1fr_1fr_1fr] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-8 row-start-2 items-center justify-center max-w-screen">
         {/* <Activity rows={rows} daysPassedThisYear={daysPassedThisYear} /> */}
 
-        <div className="flex flex-col items-start border border-red-500 p-4">
+        <div
+          className={clsx("flex flex-col items-start border p-4", {
+            "border-red-500": rowBoolean,
+            "border-green-500": !rowBoolean,
+          })}
+        >
           <p>{`Days passed this year: ${daysPassedThisYear}`}</p>
           <p>{`Rows this year: ${rows}`}</p>
           {daysPassedThisYear - rows <= 0 && (
