@@ -13,8 +13,9 @@ function getDaysPassedThisYear(today = new Date()): number {
   return getDaysDifference(today, startOfYear);
 }
 
+const today = new Date();
+
 export default async function Home() {
-  const today = new Date();
   const rows = await countLines();
 
   const daysPassedThisYear = getDaysPassedThisYear(today);
