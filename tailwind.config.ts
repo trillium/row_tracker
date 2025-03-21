@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import { teal } from 'tailwindcss/colors';
 
 export default {
   content: [
@@ -11,6 +12,7 @@ export default {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        primary: teal,
       },
     },
   },
