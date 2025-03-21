@@ -27,7 +27,7 @@ export default async function Home() {
         {/* <Activity rows={rows} daysPassedThisYear={daysPassedThisYear} /> */}
 
         <div
-          className={clsx("flex flex-col items-start border p-4", {
+          className={clsx("flex flex-col items-start border rounded-lg p-4", {
             "border-red-500": rowBoolean,
             "border-green-500": !rowBoolean,
           })}
