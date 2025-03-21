@@ -1,6 +1,5 @@
 import clsx from "clsx";
 import { countLines } from "../lib/countLines";
-import Footer from "@/components/ui/footer";
 
 function getDaysDifference(date1: Date, date2: Date): number {
   const timeDifference = date1.getTime() - date2.getTime();
@@ -46,7 +45,6 @@ export default async function Home() {
           )}
         </div>
       </main>
-      <Footer />
     </div>
   );
 }
