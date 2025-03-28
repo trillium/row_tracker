@@ -21,7 +21,7 @@ export default async function Home() {
   const rowBoolean = !!(daysPassedThisYear - rows);
 
   return (
-    <>
+    <div className="flex flex-col gap-8 items-center justify-center max-w-screen">
       <div
         className={clsx("flex flex-col items-start border rounded-lg p-4", {
           "border-red-500": rowBoolean,
