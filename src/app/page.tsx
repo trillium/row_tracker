@@ -18,14 +18,14 @@ export default async function Home() {
   const rows = await countLines();
 
   const daysPassedThisYear = getDaysPassedThisYear(today);
-  const rowBoolean = !!(daysPassedThisYear - rows);
+  const rowBoolean = daysPassedThisYear - rows <= 0;
 
   return (
     <div className="flex flex-col gap-8 items-center justify-center max-w-screen">
       <div
         className={clsx("flex flex-col items-start border rounded-lg p-4", {
-          "border-red-500": rowBoolean,
-          "border-green-500": !rowBoolean,
+          "border-green-500": rowBoolean,
+          "border-red-500": !rowBoolean,
         })}
       >
         <p>{`Days passed this year: ${daysPassedThisYear}`}</p>
@@ -41,6 +41,6 @@ export default async function Home() {
           }`}</p>
         )}
       </div>
-    </>
+    </div>
   );
 }
