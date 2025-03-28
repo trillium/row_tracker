@@ -31,9 +31,9 @@ export default async function Home() {
         <p>{`Days passed this year: ${daysPassedThisYear}`}</p>
         <p>{`Rows this year: ${rows}`}</p>
         {daysPassedThisYear - rows <= 0 && (
-          <p className="text-green-500 text-2xl">{`Rows ahead: +${
+          <p className="text-green-500 text-2xl">{`Rows ahead: +${Math.abs(
             daysPassedThisYear - rows
-          }`}</p>
+          )}`}</p>
         )}
         {daysPassedThisYear - rows > 0 && (
           <p className="text-red-500 text-2xl">{`Rows behind: -${
