@@ -1,3 +1,5 @@
+/* eslint-disable react/no-unescaped-entities */
+
 export default async function Home() {
   return (
     <div className="items-center justify-items-center flex flex-row flex-grow h-full p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
