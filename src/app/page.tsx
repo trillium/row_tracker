@@ -14,6 +14,8 @@ function getDaysPassedThisYear(today = new Date()): number {
 
 const today = new Date();
 
+const textClasses = "text-4xl font-bold";
+
 export default async function Home() {
   const rows = await countLines();
 
@@ -31,12 +33,12 @@ export default async function Home() {
         <p>{`Days passed this year: ${daysPassedThisYear}`}</p>
         <p>{`Rows this year: ${rows}`}</p>
         {daysPassedThisYear - rows <= 0 && (
-          <p className="text-green-500 text-2xl">{`Rows ahead: +${Math.abs(
-            daysPassedThisYear - rows
-          )}`}</p>
+          <p
+            className={clsx(textClasses, "text-green-500")}
+          >{`Rows ahead: +${Math.abs(daysPassedThisYear - rows)}`}</p>
         )}
         {daysPassedThisYear - rows > 0 && (
-          <p className="text-red-500 text-2xl">{`Rows behind: -${
+          <p className={clsx(textClasses, "text-red-500")}>{`Rows behind: -${
             daysPassedThisYear - rows
           }`}</p>
         )}
