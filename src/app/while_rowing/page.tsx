@@ -4,7 +4,7 @@ export default async function Home() {
   return (
     <div className="items-center justify-items-center flex flex-row flex-grow h-full p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-8 row-start-2 items-center justify-center max-w-screen">
-        <div className="flex flex-col gap-8 p-4">
+        <div className="flex flex-col gap-8 p-4 text-xl">
           <p className="">
             At the beginning of 2025, I made a commitment to myself that I would
             row 365 times before the end of the year. Along the way I've also
