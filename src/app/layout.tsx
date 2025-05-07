@@ -32,7 +32,7 @@ export default function RootLayout({
         <div className="flex justify-between flex-col min-h-screen font-[family-name:var(--font-geist-sans)]">
           <Navbar />
 
-          <div className="">{children}</div>
+          <div className="max-w-screen-lg mx-auto px-4">{children}</div>
 
           <Footer />
         </div>
