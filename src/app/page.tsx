@@ -23,6 +23,33 @@ const textClassesNegative = "from-black via-red-500 to-red-400";
 
 const textClassesGradientDirection = "bg-gradient-to-b";
 
+// Read timezone from file
+const timezone = (
+  await fs.readFile(process.cwd() + "/timezone.txt", "utf-8")
+).trim();
+// Get current date in the specified timezone
+const now = new Date();
+
+// Use Intl.DateTimeFormat to get the date parts in the timezone
+// const now = new Date();
+const formatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: timezone,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+const parts = formatter.formatToParts(now);
+const getPart = (type: string) =>
+  parts.find((p) => p.type === type)?.value || "0";
+const today = new Date(
+  `${getPart("year")}-${getPart("month")}-${getPart("day")}` +
+    `T${getPart("hour")}:${getPart("minute")}:${getPart("second")}`
+);
+
 export default async function Home() {
   const rows = await countLines();
 
