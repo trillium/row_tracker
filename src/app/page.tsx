@@ -1,3 +1,4 @@
+import fs from "fs/promises";
 import clsx from "clsx";
 import { countLines } from "../lib/countLines";
 
@@ -11,8 +12,6 @@ function getDaysPassedThisYear(today = new Date()): number {
   const startOfYear = new Date(currentYear, 0, 1);
   return getDaysDifference(today, startOfYear);
 }
-
-const today = new Date();
 
 const textClassesBase =
   "text-4xl font-bold inline-block text-transparent bg-clip-text";
@@ -52,7 +51,6 @@ const today = new Date(
 
 export default async function Home() {
   const rows = await countLines();
-
   const daysPassedThisYear = getDaysPassedThisYear(today);
   const rowBoolean = daysPassedThisYear - rows <= 0;
 
