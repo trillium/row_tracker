@@ -61,7 +61,7 @@ export default async function Image() {
       <div
         style={{
           fontSize: 64,
-          background: "white",
+          background: "black",
           width: "100%",
           height: "100%",
           display: "flex",
@@ -69,15 +69,16 @@ export default async function Image() {
           alignItems: "flex-start",
           justifyContent: "center",
           padding: 64,
+          margin: 32,
           border: `8px solid ${rowBoolean ? "#22c55e" : "#ef4444"}`,
           boxSizing: "border-box",
         }}
       >
         <div
-          style={{ fontWeight: 700, marginBottom: 24 }}
+          style={{ fontWeight: 700, marginBottom: 24, color: "white" }}
         >{`Days passed this year: ${daysPassedThisYear}`}</div>
         <div
-          style={{ fontWeight: 700, marginBottom: 24 }}
+          style={{ fontWeight: 700, marginBottom: 24, color: "white" }}
         >{`Rows this year: ${rows}`}</div>
         {statusDiv}
       </div>
