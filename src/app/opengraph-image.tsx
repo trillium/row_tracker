@@ -12,11 +12,13 @@ export const contentType = "image/png";
 
 // Image generation
 export default async function Image() {
-  // Get the JSX from RowingStats
-  const stats = await RowingStats();
-  return new ImageResponse(stats, {
-    // For convenience, we can re-use the exported opengraph-image
-    // size config to also set the ImageResponse's width and height.
-    ...size,
-  });
+  return new ImageResponse(
+    <RowingStats />,
+    // ImageResponse options
+    {
+      // For convenience, we can re-use the exported opengraph-image
+      // size config to also set the ImageResponse's width and height.
+      ...size,
+    }
+  );
 }
