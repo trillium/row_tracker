@@ -1,12 +1,14 @@
 import fs from "fs/promises";
 
+// Evaluate 'now' at module load time (build time for SSG)
+const buildTimeNow = new Date();
+
 export async function getTimezone(): Promise<string> {
     const timezone = await fs.readFile(process.cwd() + "/timezone.txt", "utf-8");
     return timezone.trim();
 }
 
 export async function getCurrentDateInTimezone(timezone: string): Promise<Date> {
-    const now = new Date();
     const formatter = new Intl.DateTimeFormat("en-US", {
         timeZone: timezone,
         year: "numeric",
@@ -17,7 +19,7 @@ export async function getCurrentDateInTimezone(timezone: string): Promise<Date> 
         second: "2-digit",
         hour12: false,
     });
-    const parts = formatter.formatToParts(now);
+    const parts = formatter.formatToParts(buildTimeNow);
     const getPart = (type: string) => parts.find((p) => p.type === type)?.value || "0";
     return new Date(
         `${getPart("year")}-${getPart("month")}-${getPart("day")}` +
