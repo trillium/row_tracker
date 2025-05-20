@@ -6,6 +6,13 @@ import {
   getDaysPassedThisYear,
 } from "../lib/dateHelpers";
 
+// Tailwind classes from RowingStats
+const textClassesBase =
+  "text-4xl font-bold inline-block text-transparent bg-clip-text";
+const textClassesPositive = "from-black via-green-500 to-green-400";
+const textClassesNegative = "from-black via-red-500 to-red-400";
+const textClassesGradientDirection = "bg-gradient-to-b";
+
 // Image metadata
 export const alt = "Trillium's Rowing Tracker";
 export const size = {
@@ -27,14 +34,8 @@ export default async function Image() {
   if (daysPassedThisYear - rows <= 0) {
     statusDiv = (
       <div
-        style={{
-          fontWeight: 700,
-          fontSize: 72,
-          background: "linear-gradient(to bottom, black, #22c55e, #4ade80)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          marginBottom: 24,
-        }}
+        className={`${textClassesBase} ${textClassesPositive} ${textClassesGradientDirection}`}
+        style={{ marginBottom: 24 }}
       >
         {`Rows ahead: +${Math.abs(daysPassedThisYear - rows)}`}
       </div>
@@ -42,14 +43,8 @@ export default async function Image() {
   } else {
     statusDiv = (
       <div
-        style={{
-          fontWeight: 700,
-          fontSize: 72,
-          background: "linear-gradient(to bottom, black, #ef4444, #f87171)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          marginBottom: 24,
-        }}
+        className={`${textClassesBase} ${textClassesNegative} ${textClassesGradientDirection}`}
+        style={{ marginBottom: 24 }}
       >
         {`Rows behind: -${daysPassedThisYear - rows}`}
       </div>
