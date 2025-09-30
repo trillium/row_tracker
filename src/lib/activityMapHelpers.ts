@@ -3,7 +3,7 @@ import {
     startOfWeek,
     format,
 } from "date-fns";
-import { ActivityByDate } from "../types/activityMap";
+import { ActivityByDate, ProcessedActivityData } from "../types/activityMap";
 
 // Helper to get 52 weeks of days from the week of the given date backwards
 /**
@@ -33,23 +33,25 @@ export function getYearDays(date: Date) {
 
 // Process rows data into activity by date
 /**
- * Processes an array of timestamp strings into a date-based activity count map.
+ * Processes an array of timestamp strings into a date-based activity count map and finds the first tracked date.
  *
  * This function takes rowing session timestamps from the data file, validates each
  * timestamp, and aggregates the sessions by date. Multiple sessions on the same
- * date are counted together.
+ * date are counted together. It also identifies the earliest valid date.
  *
  * @param rowsData - Array of strings, each representing a rowing session timestamp
  *                   in ISO format (e.g., "2025-03-04T21:47:36-08:00")
- * @returns An object mapping date strings (YYYY-MM-DD) to activity counts
+ * @returns An object containing the activity map and the first tracked date
  *
  * @example
- * const data = ["2025-01-01T10:00:00Z", "2025-01-01T11:00:00Z", "2025-01-02T10:00:00Z"];
+ * const data = ["2025-01-01T10:00:00Z", "2025-01-01T11:00:00Z", "2025-01-02T10:00:00Z", "invalid"];
  * const result = processActivityData(data);
- * // result: { "2025-01-01": 2, "2025-01-02": 1 }
+ * // result: { activity: { "2025-01-01": 2, "2025-01-02": 1 }, firstDate: "2025-01-01", untrackedCount: 1 }
  */
-export function processActivityData(rowsData: string[]): ActivityByDate {
+export function processActivityData(rowsData: string[]): ProcessedActivityData {
     const byDate: ActivityByDate = {};
+    let earliestDate: Date | null = null;
+    let untrackedCount = 0;
 
     rowsData.forEach((line) => {
         // Process each timestamp line
@@ -66,10 +68,59 @@ export function processActivityData(rowsData: string[]): ActivityByDate {
 
             const date = format(parsedDate, "yyyy-MM-dd"); // Format to YYYY-MM-DD
             byDate[date] = (byDate[date] || 0) + 1; // Increment count for date
+
+            if (earliestDate === null || parsedDate < earliestDate) {
+                earliestDate = parsedDate;
+            }
+        } catch {
+            // Invalid date, count as untracked
+            untrackedCount++;
+        }
+    });
+
+    const firstDate = earliestDate ? format(earliestDate, "yyyy-MM-dd") : null;
+
+    return { activity: byDate, firstDate, untracked: { count: untrackedCount, date: firstDate } };
+}
+
+// Get the first tracked date from rows data
+/**
+ * Finds the earliest date from an array of timestamp strings.
+ *
+ * This function parses rowing session timestamps and returns the first (earliest)
+ * valid date found. Invalid timestamps are skipped.
+ *
+ * @param rowsData - Array of strings, each representing a rowing session timestamp
+ *                   in ISO format (e.g., "2025-03-04T21:47:36-08:00")
+ * @returns The earliest valid date as a string in "YYYY-MM-DD" format, or null if no valid dates
+ *
+ * @example
+ * const data = ["2025-01-02T10:00:00Z", "2025-01-01T10:00:00Z"];
+ * const firstDate = getFirstTrackedDate(data);
+ * // firstDate: "2025-01-01"
+ */
+export function getFirstTrackedDate(rowsData: string[]): string | null {
+    let earliestDate: Date | null = null;
+
+    rowsData.forEach((line) => {
+        if (!line.trim()) {
+            return;
+        }
+
+        try {
+            const parsedDate = new Date(line);
+
+            if (isNaN(parsedDate.getTime())) {
+                throw new Error("Invalid date");
+            }
+
+            if (earliestDate === null || parsedDate < earliestDate) {
+                earliestDate = parsedDate;
+            }
         } catch {
             // Invalid date, skip
         }
     });
 
-    return byDate;
+    return earliestDate ? format(earliestDate, "yyyy-MM-dd") : null;
 }
