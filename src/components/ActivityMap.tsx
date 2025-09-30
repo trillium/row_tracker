@@ -4,7 +4,7 @@ import { getYearDays, processActivityData } from "../lib/activityMapHelpers";
 import ActivityGrid from "./ActivityGrid";
 
 const ActivityMap: React.FC<ActivityMapProps> = ({ rowsData }) => {
-  const activity = processActivityData(rowsData); // Process timestamps into date counts
+  const { activity, firstDate, untracked } = processActivityData(rowsData); // Process timestamps into date counts and get first date
 
   const days = getYearDays(new Date()); // Get 52 weeks of days
   const weeks: string[][] = [];
@@ -16,8 +16,10 @@ const ActivityMap: React.FC<ActivityMapProps> = ({ rowsData }) => {
 
   return (
     <div>
-      <h3 className="mb-2 font-bold">Activity Map (52 Weeks)</h3>
-      <ActivityGrid weeks={weeks} activity={activity} />
+      <h3 className="mb-2 font-bold">
+        Activity Map (52 Weeks){firstDate && ` - First tracked: ${firstDate}`}
+      </h3>
+      <ActivityGrid weeks={weeks} activity={activity} untracked={untracked} />
     </div>
   );
 };
