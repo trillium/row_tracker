@@ -21,10 +21,6 @@ const Week: React.FC<WeekProps> = ({ week, activity }) => {
       {/* Week column */}
       {week.map((day, di) => {
         const count = activity[day] || 0;
-        console.log(
-          `Date: ${day}, Count: ${count}, Activity keys:`,
-          Object.keys(activity)
-        );
         return <DayCell key={di} dateStr={day} count={count} />;
       })}
     </div>

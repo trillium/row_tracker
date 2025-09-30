@@ -23,7 +23,6 @@ const ActivityGrid: React.FC<ActivityGridProps> = ({ weeks, activity }) => {
       </div>
       {/* Flex container for weeks */}
       {weeks.map((week, wi) => {
-        console.log(`Week ${wi}:`, week);
         return <Week key={wi} week={week} activity={activity} weekIndex={wi} />;
       })}
     </div>
