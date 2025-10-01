@@ -3,6 +3,7 @@ import {
     startOfWeek,
     format,
 } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { ActivityByDate, ProcessedActivityData } from "../types/activityMap";
 
 // Helper to get 52 weeks of days from the week of the given date backwards
@@ -36,8 +37,8 @@ export function getYearDays(date: Date) {
  * Processes an array of timestamp strings into a date-based activity count map and finds the first tracked date.
  *
  * This function takes rowing session timestamps from the data file, validates each
- * timestamp, and aggregates the sessions by date. Multiple sessions on the same
- * date are counted together. It also identifies the earliest valid date.
+ * timestamp, converts them to Los Angeles time, and aggregates the sessions by date.
+ * Multiple sessions on the same date are counted together. It also identifies the earliest valid date.
  *
  * @param rowsData - Array of strings, each representing a rowing session timestamp
  *                   in ISO format (e.g., "2025-03-04T21:47:36-08:00")
@@ -66,11 +67,12 @@ export function processActivityData(rowsData: string[]): ProcessedActivityData {
                 throw new Error("Invalid date");
             }
 
-            const date = format(parsedDate, "yyyy-MM-dd"); // Format to YYYY-MM-DD
+            const laDate = toZonedTime(parsedDate, 'America/Los_Angeles'); // Convert to Los Angeles time
+            const date = format(laDate, "yyyy-MM-dd"); // Format to YYYY-MM-DD
             byDate[date] = (byDate[date] || 0) + 1; // Increment count for date
 
-            if (earliestDate === null || parsedDate < earliestDate) {
-                earliestDate = parsedDate;
+            if (earliestDate === null || laDate < earliestDate) {
+                earliestDate = laDate;
             }
         } catch {
             // Invalid date, count as untracked
@@ -87,8 +89,8 @@ export function processActivityData(rowsData: string[]): ProcessedActivityData {
 /**
  * Finds the earliest date from an array of timestamp strings.
  *
- * This function parses rowing session timestamps and returns the first (earliest)
- * valid date found. Invalid timestamps are skipped.
+ * This function parses rowing session timestamps, converts them to Los Angeles time,
+ * and returns the first (earliest) valid date found. Invalid timestamps are skipped.
  *
  * @param rowsData - Array of strings, each representing a rowing session timestamp
  *                   in ISO format (e.g., "2025-03-04T21:47:36-08:00")
@@ -114,8 +116,10 @@ export function getFirstTrackedDate(rowsData: string[]): string | null {
                 throw new Error("Invalid date");
             }
 
-            if (earliestDate === null || parsedDate < earliestDate) {
-                earliestDate = parsedDate;
+            const laDate = toZonedTime(parsedDate, 'America/Los_Angeles'); // Convert to Los Angeles time
+
+            if (earliestDate === null || laDate < earliestDate) {
+                earliestDate = laDate;
             }
         } catch {
             // Invalid date, skip
