@@ -40,11 +40,11 @@ const Week: React.FC<WeekProps> = ({
     : "";
 
   return (
-    <div className={clsx("flex flex-col", { "bg-teal-950": shouldHighlight })}>
+    <div className={clsx("flex flex-col", { "bg-teal-100 dark:bg-teal-900": shouldHighlight })}>
       {/* Week header */}
       <div
         className={clsx(
-          "w-3 h-3 m-0.5 flex items-center text-xs text-slate-400 font-bold rotate-[-45deg] underline whitespace-nowrap",
+          "w-3 h-3 m-0.5 flex items-center text-xs text-slate-600 dark:text-slate-400 font-bold rotate-[-45deg] underline whitespace-nowrap",
           isFirstUntrackedWeek
             ? "justify-start translate-x-[-10px] translate-y-[2px]"
             : "justify-center translate-x-[2px] translate-y-[2px]"
@@ -52,7 +52,7 @@ const Week: React.FC<WeekProps> = ({
       >
         <span
           className={clsx({
-            "bg-teal-950 p-1 rounded-md border border-black":
+            "bg-teal-100 dark:bg-teal-900 p-1 rounded-md border border-teal-300 dark:border-gray-700":
               isFirstUntrackedWeek,
           })}
         >
@@ -66,7 +66,7 @@ const Week: React.FC<WeekProps> = ({
       })}
       {/* Month label */}
       {monthLabel && (
-        <div className="w-3 h-3 m-0.5 flex items-center justify-center text-xs text-slate-400 font-bold rotate-[-45deg]">
+        <div className="w-3 h-3 m-0.5 flex items-center justify-center text-xs text-slate-600 dark:text-slate-400 font-bold rotate-[-45deg]">
           {monthLabel}
         </div>
       )}
