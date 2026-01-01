@@ -15,7 +15,7 @@ const ActivityMap: React.FC<ActivityMapProps> = ({ rowsData }) => {
   weeks.reverse(); // Reverse to start from most recent weeks
 
   return (
-    <div>
+    <div className="py-8">
       <h3 className="mb-2 font-bold">
         Activity Map (52 Weeks){firstDate && ` - First tracked: ${firstDate}`}
       </h3>

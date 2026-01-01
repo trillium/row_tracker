@@ -10,7 +10,7 @@ export default async function Home() {
   const rowsData = rowsContent.split("\n").filter((line) => line.trim());
 
   return (
-    <div className="flex flex-col gap-8 items-center justify-center max-w-screen">
+    <div className="flex flex-col gap-8 overflow-x-auto">
       <RowingStats />
       <ActivityMap rowsData={rowsData} />
     </div>
