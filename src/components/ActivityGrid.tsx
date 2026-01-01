@@ -50,9 +50,9 @@ const ActivityGrid: React.FC<ActivityGridProps> = ({
   }
 
   return (
-    <div className="flex border border-teal-300 dark:border-teal-700 rounded-lg">
+    <div className="flex border border-teal-300 dark:border-teal-700 rounded-lg overflow-x-auto">
       {/* Day headings */}
-      <div className="flex flex-col mr-2">
+      <div className="flex flex-col mr-2 sticky left-0 bg-white dark:bg-gray-800 z-10">
         <div className="w-3 h-3 m-0.5"></div>
         {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
           <div
