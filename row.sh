@@ -8,13 +8,12 @@ if [ "${1:-}" = "--dry" ]; then
 fi
 
 if [ -z "${1:-}" ]; then
-  echo "Usage: ./row.sh [--dry] <timestamp>" >&2
-  echo "Example: ./row.sh \"2026-03-01T10:44:56-08:00\"" >&2
-  echo "         ./row.sh --dry \"2026-03-01T10:44:56-08:00\"" >&2
-  exit 1
+  DRY_RUN=true
+  TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S%z" | sed 's/\([0-9][0-9]\)$/:\1/')
+else
+  TIMESTAMP="$1"
 fi
 
-TIMESTAMP="$1"
 YEAR="${TIMESTAMP:0:4}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROWS_FILE="$SCRIPT_DIR/rows.txt"
