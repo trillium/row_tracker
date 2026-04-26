@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DRY_RUN=false
+if [ "${1:-}" = "--dry" ]; then
+  DRY_RUN=true
+  shift
+fi
+
 if [ -z "${1:-}" ]; then
-  echo "Usage: ./row.sh <timestamp>" >&2
+  echo "Usage: ./row.sh [--dry] <timestamp>" >&2
   echo "Example: ./row.sh \"2026-03-01T10:44:56-08:00\"" >&2
+  echo "         ./row.sh --dry \"2026-03-01T10:44:56-08:00\"" >&2
   exit 1
 fi
 
@@ -16,16 +23,18 @@ ROWS_FILE="$SCRIPT_DIR/rows.txt"
 COUNT=$(grep -c "^${YEAR}-" "$ROWS_FILE" || true)
 INSTANCE=$(printf "%03d" $((COUNT + 1)))
 
-# Append timestamp before the trailing empty line
-# Remove trailing newline, append timestamp, restore trailing newline
-sed -i '' -e '$ { /^$/d; }' "$ROWS_FILE"
-echo "$TIMESTAMP" >> "$ROWS_FILE"
-echo "" >> "$ROWS_FILE"
+if [ "$DRY_RUN" = false ]; then
+  # Append timestamp before the trailing empty line
+  # Remove trailing newline, append timestamp, restore trailing newline
+  sed -i '' -e '$ { /^$/d; }' "$ROWS_FILE"
+  echo "$TIMESTAMP" >> "$ROWS_FILE"
+  echo "" >> "$ROWS_FILE"
 
-# Commit and push
-git -C "$SCRIPT_DIR" add rows.txt
-git -C "$SCRIPT_DIR" commit -m "feat: Add row timestamp ${YEAR}-${INSTANCE}"
-git -C "$SCRIPT_DIR" push
+  # Commit and push
+  git -C "$SCRIPT_DIR" add rows.txt
+  git -C "$SCRIPT_DIR" commit -m "feat: Add row timestamp ${YEAR}-${INSTANCE}"
+  git -C "$SCRIPT_DIR" push
+fi
 
 # Stats
 ROW_NUM=$((COUNT + 1))
