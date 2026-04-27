@@ -40,10 +40,19 @@ ROW_NUM=$((COUNT + 1))
 DAY_OF_YEAR=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${TIMESTAMP:0:19}" "+%-j" 2>/dev/null || date -j -f "%Y-%m-%dT%T" "${TIMESTAMP:0:19}" "+%-j")
 DIFF=$((ROW_NUM - DAY_OF_YEAR))
 
+# Days in year (leap year check)
+if (( YEAR % 4 == 0 && (YEAR % 100 != 0 || YEAR % 400 == 0) )); then
+  DAYS_IN_YEAR=366
+else
+  DAYS_IN_YEAR=365
+fi
+DAYS_LEFT=$((DAYS_IN_YEAR - DAY_OF_YEAR))
+PCT_THROUGH=$((DAY_OF_YEAR * 100 / DAYS_IN_YEAR))
+
 echo ""
 echo "--- Row Stats ---"
 echo "Row #${ROW_NUM} of ${YEAR}"
-echo "Day #${DAY_OF_YEAR} of ${YEAR}"
+echo "Day #${DAY_OF_YEAR} of ${DAYS_IN_YEAR} (${PCT_THROUGH}% through ${YEAR}, ${DAYS_LEFT} days left)"
 if [ "$DIFF" -gt 0 ]; then
   echo "📈 ${DIFF} rows ahead of pace (1/day)"
 elif [ "$DIFF" -lt 0 ]; then
