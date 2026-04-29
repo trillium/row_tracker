@@ -2,8 +2,12 @@
 set -euo pipefail
 
 DRY_RUN=false
+REPLACE=false
 if [ "${1:-}" = "--dry" ]; then
   DRY_RUN=true
+  shift
+elif [ "${1:-}" = "--replace" ]; then
+  REPLACE=true
   shift
 fi
 
@@ -22,7 +26,23 @@ ROWS_FILE="$SCRIPT_DIR/rows.txt"
 COUNT=$(grep -c "^${YEAR}-" "$ROWS_FILE" || true)
 INSTANCE=$(printf "%03d" $((COUNT + 1)))
 
-if [ "$DRY_RUN" = false ]; then
+if [ "$REPLACE" = true ]; then
+  # Undo last commit, remove last timestamp, add new one
+  git -C "$SCRIPT_DIR" reset --hard HEAD~1
+  sed -i '' -e '$ { /^$/d; }' "$ROWS_FILE"
+  # Remove the last line (previous timestamp)
+  sed -i '' -e '$ d' "$ROWS_FILE"
+  echo "$TIMESTAMP" >> "$ROWS_FILE"
+  echo "" >> "$ROWS_FILE"
+
+  # Re-count after removal
+  COUNT=$(grep -c "^${YEAR}-" "$ROWS_FILE" || true)
+  INSTANCE=$(printf "%03d" $((COUNT)))
+
+  git -C "$SCRIPT_DIR" add rows.txt
+  git -C "$SCRIPT_DIR" commit -m "feat: Add row timestamp ${YEAR}-${INSTANCE}"
+  git -C "$SCRIPT_DIR" push --force
+elif [ "$DRY_RUN" = false ]; then
   # Append timestamp before the trailing empty line
   # Remove trailing newline, append timestamp, restore trailing newline
   sed -i '' -e '$ { /^$/d; }' "$ROWS_FILE"
