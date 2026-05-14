@@ -85,25 +85,33 @@ for i in $(seq 13 -1 0); do
 done
 
 # Current contiguous row streak (individual instances; resets on missed day)
-STREAK=0
+COUNT_STREAK=0
 PREV_DAY=""
 while IFS= read -r entry; do
   entry_day="${entry:0:10}"
   if [ -z "$PREV_DAY" ]; then
     PREV_DAY="$entry_day"
-    STREAK=1
+    COUNT_STREAK=1
   else
     EXPECTED=$(date -j -v-1d -f "%Y-%m-%d" "$PREV_DAY" "+%Y-%m-%d")
     if [ "$entry_day" = "$PREV_DAY" ]; then
-      STREAK=$((STREAK + 1))
+      COUNT_STREAK=$((COUNT_STREAK + 1))
     elif [ "$entry_day" = "$EXPECTED" ]; then
-      STREAK=$((STREAK + 1))
+      COUNT_STREAK=$((COUNT_STREAK + 1))
       PREV_DAY="$entry_day"
     else
       break
     fi
   fi
 done < <(grep "^[0-9]" "$ROWS_FILE" | sort -r)
+
+# Current day streak (consecutive days with at least one row)
+DAY_STREAK=0
+STREAK_DATE="${TIMESTAMP:0:10}"
+while grep -q "^${STREAK_DATE}T" "$ROWS_FILE"; do
+  DAY_STREAK=$((DAY_STREAK + 1))
+  STREAK_DATE=$(date -j -v-1d -f "%Y-%m-%d" "$STREAK_DATE" "+%Y-%m-%d")
+done
 
 # Days rowed and missed this year
 DAYS_ROWED=$(grep "^${YEAR}-" "$ROWS_FILE" | cut -c1-10 | sort -u | wc -l | tr -d ' ')
@@ -113,7 +121,8 @@ echo ""
 echo "--- Row Stats ---"
 echo "Row #${ROW_NUM} of ${YEAR}"
 echo "Day #${DAY_OF_YEAR} of ${DAYS_IN_YEAR} (${PCT_THROUGH}% through ${YEAR}, ${DAYS_LEFT} days left)"
-echo "Days rowed: ${DAYS_ROWED} | Days missed: ${DAYS_MISSED} | Streak: ${STREAK} day(s)"
+echo "Days rowed: ${DAYS_ROWED} | Days missed: ${DAYS_MISSED}"
+echo "Day streak: ${DAY_STREAK} | Row streak: ${COUNT_STREAK}"
 if [ "$DIFF" -gt 0 ]; then
   echo "📈 ${DIFF} rows ahead of pace (1/day)"
 elif [ "$DIFF" -lt 0 ]; then
