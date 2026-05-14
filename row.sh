@@ -69,10 +69,38 @@ fi
 DAYS_LEFT=$((DAYS_IN_YEAR - DAY_OF_YEAR))
 PCT_THROUGH=$((DAY_OF_YEAR * 100 / DAYS_IN_YEAR))
 
+# Recent activity — last 14 calendar days
+echo ""
+echo "--- Last 2 Weeks ---"
+for i in $(seq 13 -1 0); do
+  day=$(date -j -v-${i}d -f "%Y-%m-%dT%H:%M:%S" "${TIMESTAMP:0:19}" "+%Y-%m-%d")
+  dow=$(date -j -f "%Y-%m-%d" "$day" "+%a")
+  count=$(grep -c "^${day}T" "$ROWS_FILE" || true)
+  if [ "$count" -gt 0 ]; then
+    pluses=$(printf '+%.0s' $(seq 1 $count))
+    echo "$dow $day $pluses"
+  else
+    echo "$dow $day"
+  fi
+done
+
+# Current contiguous day streak
+STREAK=0
+STREAK_DATE="${TIMESTAMP:0:10}"
+while grep -q "^${STREAK_DATE}T" "$ROWS_FILE"; do
+  STREAK=$((STREAK + 1))
+  STREAK_DATE=$(date -j -v-1d -f "%Y-%m-%d" "$STREAK_DATE" "+%Y-%m-%d")
+done
+
+# Days rowed and missed this year
+DAYS_ROWED=$(grep "^${YEAR}-" "$ROWS_FILE" | cut -c1-10 | sort -u | wc -l | tr -d ' ')
+DAYS_MISSED=$((DAY_OF_YEAR - DAYS_ROWED))
+
 echo ""
 echo "--- Row Stats ---"
 echo "Row #${ROW_NUM} of ${YEAR}"
 echo "Day #${DAY_OF_YEAR} of ${DAYS_IN_YEAR} (${PCT_THROUGH}% through ${YEAR}, ${DAYS_LEFT} days left)"
+echo "Days rowed: ${DAYS_ROWED} | Days missed: ${DAYS_MISSED} | Streak: ${STREAK} day(s)"
 if [ "$DIFF" -gt 0 ]; then
   echo "📈 ${DIFF} rows ahead of pace (1/day)"
 elif [ "$DIFF" -lt 0 ]; then
