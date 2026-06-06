@@ -18,9 +18,27 @@ else
   TIMESTAMP="$1"
 fi
 
+# Validate timestamp format: YYYY-MM-DDTHH:MM:SS±HH:MM (ISO 8601 with colon in tz)
+TS_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$'
+if ! [[ "$TIMESTAMP" =~ $TS_RE ]]; then
+  echo "ERROR: invalid timestamp format: $TIMESTAMP" >&2
+  echo "Expected: YYYY-MM-DDTHH:MM:SS±HH:MM (e.g. 2026-06-06T08:22:31-07:00)" >&2
+  exit 1
+fi
+
 YEAR="${TIMESTAMP:0:4}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROWS_FILE="$SCRIPT_DIR/rows.txt"
+
+# Refuse exact duplicates of the last logged timestamp (catches accidental re-runs)
+if [ "$DRY_RUN" = false ] && [ "$REPLACE" = false ]; then
+  LAST_TS=$(grep "^[0-9]" "$ROWS_FILE" | tail -1)
+  if [ "$LAST_TS" = "$TIMESTAMP" ]; then
+    echo "ERROR: timestamp $TIMESTAMP is identical to the last logged entry" >&2
+    echo "Use --replace to overwrite the previous entry, or change the timestamp." >&2
+    exit 1
+  fi
+fi
 
 # Count existing entries for this year
 COUNT=$(grep -c "^${YEAR}-" "$ROWS_FILE" || true)
@@ -72,17 +90,57 @@ PCT_THROUGH=$((DAY_OF_YEAR * 100 / DAYS_IN_YEAR))
 # Recent activity — last 14 calendar days
 echo ""
 echo "--- Last 2 Weeks ---"
+# Calculate running total (year_rows - day_of_year) for the day before the window
+first_day=$(date -j -v-13d -f "%Y-%m-%dT%H:%M:%S" "${TIMESTAMP:0:19}" "+%Y-%m-%d")
+first_doy=$(date -j -f "%Y-%m-%d" "$first_day" "+%-j")
+rows_up_to_before=$(awk -v d="$first_day" -v y="$YEAR" '$0 ~ "^"y"-" && $0 < d"T"' "$ROWS_FILE" | wc -l | tr -d ' ')
+running_total=$((rows_up_to_before - (first_doy - 1)))
+
+buffered_line=""
+day_streak=0
+row_streak=0
+best_day_streak=0
+best_row_streak=0
 for i in $(seq 13 -1 0); do
   day=$(date -j -v-${i}d -f "%Y-%m-%dT%H:%M:%S" "${TIMESTAMP:0:19}" "+%Y-%m-%d")
   dow=$(date -j -f "%Y-%m-%d" "$day" "+%a")
   count=$(grep -c "^${day}T" "$ROWS_FILE" || true)
+  running_total=$((running_total + count - 1))
   if [ "$count" -gt 0 ]; then
+    # Print any buffered line first
+    if [ -n "$buffered_line" ]; then
+      echo "$buffered_line"
+    fi
+    day_streak=$((day_streak + 1))
+    row_streak=$((row_streak + count))
     pluses=$(printf '+%.0s' $(seq 1 $count))
-    echo "$dow $day $pluses"
+    RED=$'\033[31m'; GRN=$'\033[32m'; RST=$'\033[0m'
+    label="-${pluses}"
+    pad=$((5 - ${#label}))
+    spacing=$(printf '%*s' "$pad" "")
+    colored="${RED}-${GRN}${pluses}${RST}"
+    buffered_line=$(printf "%s %s %s%s%3d" "$dow" "$day" "$colored" "$spacing" "$running_total")
   else
-    echo "$dow $day"
+    # Flush buffered row line with streak appended
+    if [ -n "$buffered_line" ] && [ "$day_streak" -gt 0 ]; then
+      if [ "$day_streak" -gt "$best_day_streak" ]; then best_day_streak=$day_streak; fi
+      if [ "$row_streak" -gt "$best_row_streak" ]; then best_row_streak=$row_streak; fi
+      GRN=$'\033[32m'; RST=$'\033[0m'
+      printf "%s  streak: %dd %dr  Highscores: %s%dd %dr%s\n" "$buffered_line" "$day_streak" "$row_streak" "$GRN" "$best_day_streak" "$best_row_streak" "$RST"
+    elif [ -n "$buffered_line" ]; then
+      echo "$buffered_line"
+    fi
+    buffered_line=""
+    day_streak=0
+    row_streak=0
+    RED=$'\033[31m'; RST=$'\033[0m'
+    printf "%s %s %s-%s    %3d\n" "$dow" "$day" "$RED" "$RST" "$running_total"
   fi
 done
+# Flush any remaining buffered line (active streak, no ending yet)
+if [ -n "$buffered_line" ]; then
+  echo "$buffered_line"
+fi
 
 # Current contiguous row streak (individual instances; resets on missed day)
 COUNT_STREAK=0
