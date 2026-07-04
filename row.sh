@@ -14,6 +14,8 @@ fi
 if [ -z "${1:-}" ]; then
   DRY_RUN=true
   TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S%z" | sed 's/\([0-9][0-9]\)$/:\1/')
+elif [ "${1:-}" = "now" ]; then
+  TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S%z" | sed 's/\([0-9][0-9]\)$/:\1/')
 else
   TIMESTAMP="$1"
 fi
@@ -30,13 +32,26 @@ YEAR="${TIMESTAMP:0:4}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROWS_FILE="$SCRIPT_DIR/rows.txt"
 
-# Refuse exact duplicates of the last logged timestamp (catches accidental re-runs)
+# Validation: reject duplicates (anywhere in file) and timestamps older than the last entry
 if [ "$DRY_RUN" = false ] && [ "$REPLACE" = false ]; then
-  LAST_TS=$(grep "^[0-9]" "$ROWS_FILE" | tail -1)
-  if [ "$LAST_TS" = "$TIMESTAMP" ]; then
-    echo "ERROR: timestamp $TIMESTAMP is identical to the last logged entry" >&2
+  if grep -qFx "$TIMESTAMP" "$ROWS_FILE"; then
+    echo "ERROR: timestamp $TIMESTAMP already exists in rows.txt" >&2
     echo "Use --replace to overwrite the previous entry, or change the timestamp." >&2
     exit 1
+  fi
+  LAST_TS=$(grep "^[0-9]" "$ROWS_FILE" | tail -1)
+  if [ -n "$LAST_TS" ]; then
+    ts_to_epoch() {
+      local ts="$1"
+      date -j -f "%Y-%m-%dT%H:%M:%S%z" "${ts:0:22}${ts:23:2}" "+%s" 2>/dev/null
+    }
+    NEW_EPOCH=$(ts_to_epoch "$TIMESTAMP")
+    LAST_EPOCH=$(ts_to_epoch "$LAST_TS")
+    if [ -n "$NEW_EPOCH" ] && [ -n "$LAST_EPOCH" ] && [ "$NEW_EPOCH" -lt "$LAST_EPOCH" ]; then
+      echo "ERROR: timestamp $TIMESTAMP is older than last logged entry $LAST_TS" >&2
+      echo "Refusing to insert out-of-order timestamp. Use --replace to overwrite the last entry." >&2
+      exit 1
+    fi
   fi
 fi
 
@@ -187,4 +202,42 @@ elif [ "$DIFF" -lt 0 ]; then
   echo "📉 $((-DIFF)) rows behind pace (1/day)"
 else
   echo "📊 Exactly on pace (1/day)"
+fi
+
+# Post to Slack (skipped on --dry, --replace, or when creds file is missing)
+SLACK_CREDS="$SCRIPT_DIR/.slack-creds"
+if [ "$DRY_RUN" = false ] && [ "$REPLACE" = false ] && [ -f "$SLACK_CREDS" ]; then
+  # shellcheck source=/dev/null
+  set -a; . "$SLACK_CREDS"; set +a
+
+  if [ "$DIFF" -gt 0 ]; then
+    PACE_PART="📈 ${DIFF} ahead"
+  elif [ "$DIFF" -lt 0 ]; then
+    PACE_PART="📉 $((-DIFF)) behind"
+  else
+    PACE_PART="📊 on pace"
+  fi
+
+  if [ "${COUNT_STREAK:-0}" -gt 0 ]; then
+    STREAK_PART=" · 🔥 ${DAY_STREAK}day ${COUNT_STREAK}row streak"
+  else
+    STREAK_PART=""
+  fi
+
+  MSG="🚣 Row ${ROW_NUM}/${DAYS_IN_YEAR} · 📅 Day ${DAY_OF_YEAR}/${DAYS_IN_YEAR} (${PCT_THROUGH}%) · ${PACE_PART}${STREAK_PART}"
+
+  echo ""
+  echo "--- Slack post ---"
+  echo "→ $MSG"
+  SLACK_RESP=$(curl -s --max-time 5 -X POST "${SLACK_API_BASE}/chat.postMessage" \
+    -H "Cookie: $SLACK_COOKIE" \
+    --data-urlencode "token=$SLACK_TOKEN" \
+    --data-urlencode "channel=$SLACK_CHANNEL" \
+    --data-urlencode "text=$MSG" 2>&1) || SLACK_RESP="curl_error"
+
+  if echo "$SLACK_RESP" | grep -q '"ok":true'; then
+    echo "✓ posted to #${SLACK_CHANNEL_NAME}"
+  else
+    echo "✗ slack post failed: $(echo "$SLACK_RESP" | head -c 200)"
+  fi
 fi
