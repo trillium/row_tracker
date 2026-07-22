@@ -1,6 +1,62 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ── Subcommand dispatch ──────────────────────────────────────────────────────
+# row.sh treats $1 as a timestamp by default. Reserved words branch first;
+# anything else falls through to the existing log-a-row behavior below.
+#
+# `row pomodoro` reads the Talon Pomodoro timer's wall-clock state and prints
+# the end time + remaining. The state file is owned/written by the Talon side
+# (pomodoro.py) per the shared contract; row only READS it.
+#   File:  ~/.talon/pomodoro-state.json
+#   Shape: {"active": bool, "end_iso": "...", "end_epoch": N, "paused": bool}
+if [ "${1:-}" = "pomodoro" ]; then
+  shift
+  POMODORO_STATE="${HOME}/.talon/pomodoro-state.json"
+
+  fmt_remaining() {
+    # $1 = seconds -> "MMm SSs"
+    printf "%dm %02ds" $(($1 / 60)) $(($1 % 60))
+  }
+
+  if [ ! -f "$POMODORO_STATE" ]; then
+    echo "No active pomodoro. (Start one from Talon: \"pomodoro start\")"
+    exit 0
+  fi
+
+  ACTIVE=$(grep -o '"active"[[:space:]]*:[[:space:]]*\(true\|false\)' "$POMODORO_STATE" | grep -o '\(true\|false\)$' || true)
+  PAUSED=$(grep -o '"paused"[[:space:]]*:[[:space:]]*\(true\|false\)' "$POMODORO_STATE" | grep -o '\(true\|false\)$' || true)
+  END_ISO=$(grep -o '"end_iso"[[:space:]]*:[[:space:]]*"[^"]*"' "$POMODORO_STATE" | sed 's/.*"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
+  END_EPOCH=$(grep -o '"end_epoch"[[:space:]]*:[[:space:]]*[0-9]*' "$POMODORO_STATE" | grep -o '[0-9]*$' || true)
+
+  if [ "$ACTIVE" != "true" ]; then
+    echo "No active pomodoro. (Start one from Talon: \"pomodoro start\")"
+    exit 0
+  fi
+
+  if [ -z "$END_EPOCH" ]; then
+    echo "ERROR: pomodoro is active but $POMODORO_STATE has no end_epoch" >&2
+    exit 1
+  fi
+
+  NOW=$(date +%s)
+  REM=$((END_EPOCH - NOW))
+
+  if [ "$PAUSED" = "true" ]; then
+    if [ "$REM" -gt 0 ]; then
+      echo "⏸️  Pomodoro paused — ends ${END_ISO} ($(fmt_remaining "$REM") remaining when resumed)"
+    else
+      echo "⏸️  Pomodoro paused — ${END_ISO}"
+    fi
+  elif [ "$REM" -gt 0 ]; then
+    echo "🍅 Pomodoro active — ends ${END_ISO} ($(fmt_remaining "$REM") remaining)"
+  else
+    echo "🍅 Pomodoro ended ${END_ISO} ($(fmt_remaining $((-REM))) ago)"
+  fi
+  exit 0
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
 DRY_RUN=false
 REPLACE=false
 if [ "${1:-}" = "--dry" ]; then
