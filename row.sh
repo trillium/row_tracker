@@ -59,7 +59,38 @@ fi
 
 DRY_RUN=false
 REPLACE=false
-if [ "${1:-}" = "--dry" ]; then
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  cat << 'EOF'
+row — rowing tracker with Slack integration
+
+USAGE:
+  row [OPTIONS] [TIMESTAMP]
+  row SUBCOMMAND
+
+OPTIONS:
+  --help, -h         Show this help message
+  --dry              Show stats without logging (default if no timestamp given)
+  --replace          Replace last logged entry with new timestamp
+
+TIMESTAMP FORMAT:
+  YYYY-MM-DDTHH:MM:SS±HH:MM  (ISO 8601 with timezone)
+  Example: 2026-06-06T08:22:31-07:00
+
+SUBCOMMANDS:
+  pomodoro           Show current Pomodoro timer state
+  post-slack         Post last row's stats to Slack without logging
+
+EXAMPLES:
+  row                              # Dry run with current time
+  row 2026-07-26T19:20:05-07:00   # Log a row for specific timestamp
+  row now                          # Log current time
+  row --replace 2026-07-26T19:20:05-07:00  # Replace last entry
+  row --dry                        # Dry run (same as no args)
+  row pomodoro                     # Show Pomodoro state
+  row post-slack                   # Post to Slack
+EOF
+  exit 0
+elif [ "${1:-}" = "--dry" ]; then
   DRY_RUN=true
   shift
 elif [ "${1:-}" = "--replace" ]; then
