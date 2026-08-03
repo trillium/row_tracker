@@ -57,6 +57,111 @@ if [ "${1:-}" = "pomodoro" ]; then
 fi
 # ─────────────────────────────────────────────────────────────────────────────
 
+# `row post-slack` posts the stats for the LAST already-logged row to Slack
+# again, without appending a timestamp or making a git commit. Useful when a
+# post failed or you want a re-post of the current standing.
+if [ "${1:-}" = "post-slack" ]; then
+  shift
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  ROWS_FILE="$SCRIPT_DIR/rows.txt"
+  SLACK_CREDS="$SCRIPT_DIR/.slack-creds"
+
+  TIMESTAMP=$(grep "^[0-9]" "$ROWS_FILE" | tail -1)
+  if [ -z "$TIMESTAMP" ]; then
+    echo "ERROR: no rows logged yet in $ROWS_FILE" >&2
+    exit 1
+  fi
+  YEAR="${TIMESTAMP:0:4}"
+
+  # ROW_NUM is the count itself here (not COUNT+1) — TIMESTAMP is already
+  # the last logged row, so it IS row number COUNT, not the next one.
+  ROW_NUM=$(grep -c "^${YEAR}-" "$ROWS_FILE" || true)
+  DAY_OF_YEAR=$(date -j -f "%Y-%m-%dT%H:%M:%S" "${TIMESTAMP:0:19}" "+%-j" 2>/dev/null || date -j -f "%Y-%m-%dT%T" "${TIMESTAMP:0:19}" "+%-j")
+  DIFF=$((ROW_NUM - DAY_OF_YEAR))
+
+  if (( YEAR % 4 == 0 && (YEAR % 100 != 0 || YEAR % 400 == 0) )); then
+    DAYS_IN_YEAR=366
+  else
+    DAYS_IN_YEAR=365
+  fi
+  PCT_THROUGH=$((DAY_OF_YEAR * 100 / DAYS_IN_YEAR))
+
+  # Current contiguous row streak (individual instances; resets on missed day)
+  COUNT_STREAK=0
+  PREV_DAY=""
+  while IFS= read -r entry; do
+    entry_day="${entry:0:10}"
+    if [ -z "$PREV_DAY" ]; then
+      PREV_DAY="$entry_day"
+      COUNT_STREAK=1
+    else
+      EXPECTED=$(date -j -v-1d -f "%Y-%m-%d" "$PREV_DAY" "+%Y-%m-%d")
+      if [ "$entry_day" = "$PREV_DAY" ]; then
+        COUNT_STREAK=$((COUNT_STREAK + 1))
+      elif [ "$entry_day" = "$EXPECTED" ]; then
+        COUNT_STREAK=$((COUNT_STREAK + 1))
+        PREV_DAY="$entry_day"
+      else
+        break
+      fi
+    fi
+  done < <(grep "^[0-9]" "$ROWS_FILE" | sort -r)
+
+  # Current day streak (consecutive days with at least one row)
+  DAY_STREAK=0
+  STREAK_DATE="${TIMESTAMP:0:10}"
+  while grep -q "^${STREAK_DATE}T" "$ROWS_FILE"; do
+    DAY_STREAK=$((DAY_STREAK + 1))
+    STREAK_DATE=$(date -j -v-1d -f "%Y-%m-%d" "$STREAK_DATE" "+%Y-%m-%d")
+  done
+
+  echo "--- Row Stats (last logged row — no new entry made) ---"
+  echo "Row #${ROW_NUM} of ${YEAR}"
+  echo "Day #${DAY_OF_YEAR} of ${DAYS_IN_YEAR} (${PCT_THROUGH}% through ${YEAR})"
+  echo "Day streak: ${DAY_STREAK} | Row streak: ${COUNT_STREAK}"
+
+  if [ "$DIFF" -gt 0 ]; then
+    PACE_PART="📈 ${DIFF} ahead"
+  elif [ "$DIFF" -lt 0 ]; then
+    PACE_PART="📉 $((-DIFF)) behind"
+  else
+    PACE_PART="📊 on pace"
+  fi
+
+  if [ "$COUNT_STREAK" -gt 0 ]; then
+    STREAK_PART=" · 🔥 ${DAY_STREAK}day ${COUNT_STREAK}row streak"
+  else
+    STREAK_PART=""
+  fi
+
+  MSG="🚣 Row ${ROW_NUM}/${DAYS_IN_YEAR} · 📅 Day ${DAY_OF_YEAR}/${DAYS_IN_YEAR} (${PCT_THROUGH}%) · ${PACE_PART}${STREAK_PART}"
+
+  echo ""
+  echo "--- Slack post ---"
+  echo "→ $MSG"
+
+  if [ ! -f "$SLACK_CREDS" ]; then
+    echo "ERROR: $SLACK_CREDS not found — cannot post to Slack" >&2
+    exit 1
+  fi
+  # shellcheck source=/dev/null
+  set -a; . "$SLACK_CREDS"; set +a
+
+  SLACK_RESP=$(curl -s --max-time 5 -X POST "${SLACK_API_BASE}/chat.postMessage" \
+    -H "Cookie: $SLACK_COOKIE" \
+    --data-urlencode "token=$SLACK_TOKEN" \
+    --data-urlencode "channel=$SLACK_CHANNEL" \
+    --data-urlencode "text=$MSG" 2>&1) || SLACK_RESP="curl_error"
+
+  if echo "$SLACK_RESP" | grep -q '"ok":true'; then
+    echo "✓ posted to #${SLACK_CHANNEL_NAME}"
+  else
+    echo "✗ slack post failed: $(echo "$SLACK_RESP" | head -c 200)"
+  fi
+  exit 0
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
 DRY_RUN=false
 REPLACE=false
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
