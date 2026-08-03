@@ -147,11 +147,12 @@ COUNT=$(grep -c "^${YEAR}-" "$ROWS_FILE" || true)
 INSTANCE=$(printf "%03d" $((COUNT + 1)))
 
 if [ "$REPLACE" = true ]; then
-  # Undo last commit, remove last timestamp, add new one
+  # Undo last commit (this already removes its timestamp line from rows.txt
+  # via the working-tree checkout), then just strip the trailing blank line
+  # before appending the replacement. Do NOT delete another line here —
+  # reset --hard already did that; doing it twice eats the prior entry.
   git -C "$SCRIPT_DIR" reset --hard HEAD~1
   sed -i '' -e '$ { /^$/d; }' "$ROWS_FILE"
-  # Remove the last line (previous timestamp)
-  sed -i '' -e '$ d' "$ROWS_FILE"
   echo "$TIMESTAMP" >> "$ROWS_FILE"
   echo "" >> "$ROWS_FILE"
 
