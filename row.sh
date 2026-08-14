@@ -276,6 +276,19 @@ YEAR="${TIMESTAMP:0:4}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROWS_FILE="$SCRIPT_DIR/rows.txt"
 
+# Fetch upstream changes and rebase local commits onto origin/main before any
+# commit, so a row logged on another machine doesn't cause a push rejection.
+# Called with a clean working tree; aborts a failed rebase and stops loudly
+# rather than leaving the repo mid-rebase.
+sync_with_origin() {
+  git -C "$SCRIPT_DIR" fetch origin
+  if ! git -C "$SCRIPT_DIR" rebase origin/main; then
+    git -C "$SCRIPT_DIR" rebase --abort 2>/dev/null || true
+    echo "ERROR: rebase onto origin/main failed — resolve manually before logging" >&2
+    exit 1
+  fi
+}
+
 # Validation: reject duplicates (anywhere in file) and timestamps older than the last entry
 if [ "$DRY_RUN" = false ] && [ "$REPLACE" = false ]; then
   if grep -qFx "$TIMESTAMP" "$ROWS_FILE"; then
@@ -304,6 +317,9 @@ COUNT=$(grep -c "^${YEAR}-" "$ROWS_FILE" || true)
 INSTANCE=$(printf "%03d" $((COUNT + 1)))
 
 if [ "$REPLACE" = true ]; then
+  # Sync with origin first (clean tree here), so the last local commit we're
+  # about to rewrite is on top of the latest origin/main.
+  sync_with_origin
   # Undo last commit (this already removes its timestamp line from rows.txt
   # via the working-tree checkout), then just strip the trailing blank line
   # before appending the replacement. Do NOT delete another line here —
@@ -321,6 +337,8 @@ if [ "$REPLACE" = true ]; then
   git -C "$SCRIPT_DIR" commit -m "feat: Add row timestamp ${YEAR}-${INSTANCE}"
   git -C "$SCRIPT_DIR" push --force
 elif [ "$DRY_RUN" = false ]; then
+  # Sync with origin before committing (clean tree here).
+  sync_with_origin
   # Append timestamp before the trailing empty line
   # Remove trailing newline, append timestamp, restore trailing newline
   sed -i '' -e '$ { /^$/d; }' "$ROWS_FILE"
