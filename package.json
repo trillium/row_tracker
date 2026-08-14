@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "jest"
+    "test": "jest",
+    "test:sh": "bash tests/streak_test.sh"
   },
   "dependencies": {
     "@headlessui/react": "2.2.8",
