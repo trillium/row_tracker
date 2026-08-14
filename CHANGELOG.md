@@ -1,5 +1,11 @@
 # row_tracker — Changelog
 
+## 2026-08-04 — session 7ef9e136
+
+Files: rows.txt, row.sh
+## 2026-08-03 — session 7ef9e136
+
+Files: rows.txt, row.sh
 ## 2026-07-21 — row pomodoro subcommand (task-nmc9, Part B)
 
 Files: row.sh, CHANGELOG.md
