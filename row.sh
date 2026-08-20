@@ -57,53 +57,68 @@ _streak_step() {
 }
 
 # compute_streaks <rows_file> <as_of_date YYYY-MM-DD>
-# Walks the whole log forward, applying the rest-day bank rule day by day, and
-# echoes "<day_streak> <row_streak>" for the streak that is current as of the
-# given date. Forward order is load-bearing: a credit can only cover a miss that
-# comes AFTER it was banked, so we must never process the log backwards here.
+# Walks the whole log forward in Python (no per-day subprocess forks) and
+# echoes "<day_streak> <row_streak> <bank> <cur_streak_credits>".
 compute_streaks() {
-  local rows_file="$1" as_of="$2"
-  local _ds=0 _rs=0 _bank=0 _prev_streak_credits=0 _cur_streak_credits=0
-  local prev_day="" cnt day d cur_year=""
-  # Chronological list of "<count> <YYYY-MM-DD>" — one line per rowed calendar day.
-  while read -r cnt day; do
-    if [ -n "$prev_day" ]; then
-      # Every calendar day strictly between two rowed days is a miss.
-      d=$(date -j -v+1d -f "%Y-%m-%d" "$prev_day" "+%Y-%m-%d")
-      while [[ "$d" < "$day" ]]; do
-        # Year boundary: streaks cannot cross 12/31 → 01/01.
-        if [ "${d:0:4}" != "$cur_year" ]; then
-          _ds=0; _rs=0; _bank=0; _prev_streak_credits=0; _cur_streak_credits=0
-          cur_year="${d:0:4}"
-        fi
-        _streak_step 0
-        d=$(date -j -v+1d -f "%Y-%m-%d" "$d" "+%Y-%m-%d")
-      done
-    fi
-    # Year boundary on a rowed day (no gap days between Dec 31 and Jan 1).
-    if [ "${day:0:4}" != "$cur_year" ]; then
-      _ds=0; _rs=0; _bank=0; _prev_streak_credits=0; _cur_streak_credits=0
-      cur_year="${day:0:4}"
-    fi
-    _streak_step "$cnt"
-    prev_day="$day"
-  done < <(grep "^[0-9]" "$rows_file" | cut -c1-10 | sort | uniq -c || true)
+  python3 - "$1" "$2" <<'PYEOF'
+import sys
+from datetime import date, timedelta
 
-  # Fully-elapsed missed days between the last rowed day and the as-of date
-  # (e.g. a dry run taken some days later) also spend from or break the streak.
-  if [ -n "$prev_day" ]; then
-    d=$(date -j -v+1d -f "%Y-%m-%d" "$prev_day" "+%Y-%m-%d")
-    while [[ "$d" < "$as_of" ]]; do
-      if [ "${d:0:4}" != "$cur_year" ]; then
-        _ds=0; _rs=0; _bank=0; _prev_streak_credits=0; _cur_streak_credits=0
-        cur_year="${d:0:4}"
-      fi
-      _streak_step 0
-      d=$(date -j -v+1d -f "%Y-%m-%d" "$d" "+%Y-%m-%d")
-    done
-  fi
+rows_file, as_of = sys.argv[1], date.fromisoformat(sys.argv[2])
 
-  echo "$_ds $_rs $_bank $_cur_streak_credits"
+days = {}
+with open(rows_file) as f:
+    for line in f:
+        s = line.strip()
+        if s and s[0].isdigit() and len(s) >= 10:
+            try:
+                d = date.fromisoformat(s[:10])
+                days[d] = days.get(d, 0) + 1
+            except ValueError:
+                pass
+
+ds = rs = bank = prev_cred = cur_cred = 0
+cur_year = None
+
+def year_reset(y):
+    global ds, rs, bank, prev_cred, cur_cred, cur_year
+    if cur_year is not None and y != cur_year:
+        ds = rs = bank = prev_cred = cur_cred = 0
+    cur_year = y
+
+def step(count):
+    global ds, rs, bank, prev_cred, cur_cred
+    if count > 0:
+        if ds == 0:
+            ds = 1; rs = count
+            bank = prev_cred + count - 1
+            cur_cred = count - 1; prev_cred = 0
+        else:
+            ds += 1; rs += count
+            bank += count - 1; cur_cred += count - 1
+    elif ds > 0 and bank > 0:
+        bank -= 1; ds += 1
+    else:
+        if ds > 0:
+            prev_cred = cur_cred; cur_cred = 0
+        ds = rs = bank = 0
+
+prev_day = None
+for d, count in sorted(days.items()):
+    if prev_day is not None:
+        for i in range(1, (d - prev_day).days):
+            gd = prev_day + timedelta(days=i)
+            year_reset(gd.year); step(0)
+    year_reset(d.year); step(count)
+    prev_day = d
+
+if prev_day is not None:
+    for i in range(1, (as_of - prev_day).days):
+        gd = prev_day + timedelta(days=i)
+        year_reset(gd.year); step(0)
+
+print(ds, rs, bank, cur_cred)
+PYEOF
 }
 
 # ── Subcommand dispatch ──────────────────────────────────────────────────────
