@@ -72,10 +72,10 @@ NL=$'\n'   # command substitution strips trailing newlines, so join explicitly.
 
 # ── Case 1: a miss WITH credits available — the streak survives ───────────────
 # 03-01 has 2 rows (banks 1 credit); 03-03 is missed but covered. Covered days
-# do not increment the day streak (3 rowed days: 01,02,04) and do not change the
-# row streak (2+1+1 = 4).
+# DO count toward the day streak (01,02,03=covered,04 = 4 streak days) and do
+# not change the row streak (2+1+1 = 4).
 C1="2026-03-01T08:00:00-07:00${NL}2026-03-01T18:00:00-07:00${NL}2026-03-02T08:00:00-07:00${NL}2026-03-04T08:00:00-07:00${NL}"
-assert_streak "case1: miss with credit survives" "2026-03-04T08:00:00-07:00" "$C1" 3 4
+assert_streak "case1: miss with credit survives" "2026-03-04T08:00:00-07:00" "$C1" 4 4
 
 # ── Case 2: a miss with an EMPTY bank — the streak breaks ─────────────────────
 # 03-01 one row (no credit), 03-02 missed with empty bank -> break. Only 03-03
@@ -97,19 +97,19 @@ assert_streak "case3: two misses, one credit -> breaks on 2nd" "2026-03-04T08:00
 C4="2026-03-01T08:00:00-07:00${NL}2026-03-01T18:00:00-07:00${NL}2026-03-06T08:00:00-07:00${NL}"
 assert_streak "case4: balance floored at zero" "2026-03-06T08:00:00-07:00" "$C4" 1 1
 
-# ── Case 5: the bank RESETS when a streak breaks ─────────────────────────────
+# ── Case 5: credits from a broken streak carry into the next one ──────────────
 # 03-01 has 3 rows (2 credits). 03-02, 03-03 covered (bank->0), 03-04 missed ->
-# break, bank resets. 03-05 one row (fresh streak, empty bank). 03-06 missed:
-# the 2 credits from 03-01 are GONE, so it breaks immediately. Current streak is
-# only 03-07.
+# break. The 2 credits earned on 03-01 are INHERITED by the new streak starting
+# on 03-05, so 03-06 is covered (bank->1) and the streak extends to 03-07.
 C5="2026-03-01T06:00:00-07:00${NL}2026-03-01T12:00:00-07:00${NL}2026-03-01T18:00:00-07:00${NL}2026-03-05T08:00:00-07:00${NL}2026-03-07T08:00:00-07:00${NL}"
-assert_streak "case5: bank resets on break" "2026-03-07T08:00:00-07:00" "$C5" 1 1
+assert_streak "case5: prev streak credits carry into next streak" "2026-03-07T08:00:00-07:00" "$C5" 3 2
 
 # ── Case 6: the captain's real 2026-08-10 -> 2026-08-14 sequence is unbroken ──
 # Self-contained tail: 08-10 (2 rows, banks 1), 08-11, 08-12, 08-13 missed
-# (covered by the 08-10 credit), 08-14. Four rowed days, five rows, unbroken.
+# (covered by the 08-10 credit), 08-14. Five streak days (covered 08-13 counts),
+# five rows, unbroken.
 C6="2026-08-10T12:24:20-07:00${NL}2026-08-10T14:27:37-07:00${NL}2026-08-11T14:03:00-07:00${NL}2026-08-12T13:59:09-07:00${NL}2026-08-14T10:32:51-07:00${NL}"
-assert_streak "case6: captain 08-10->08-14 unbroken" "2026-08-14T10:32:51-07:00" "$C6" 4 5
+assert_streak "case6: captain 08-10->08-14 unbroken" "2026-08-14T10:32:51-07:00" "$C6" 5 5
 
 # ── Case 6b: against a read-only copy of the REAL rows.txt ───────────────────
 # The real log must yield an unbroken streak across the missed 2026-08-13. Under

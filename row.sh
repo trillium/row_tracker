@@ -10,32 +10,46 @@ set -euo pipefail
 #     through that day unbroken (a "covered" rest day).
 #   * The balance may never go negative: an empty bank plus a missed day breaks
 #     the streak exactly as it always did. There is no cap on the balance.
-#   * Credits are earned and spent within a single streak — when a streak
-#     breaks, the bank resets to zero along with the streak.
+#   * When a streak breaks and a new one begins, the new streak INHERITS the
+#     total credits earned by the most recently completed streak — so doubles
+#     banked before a break continue to cover rest days in the streak that
+#     follows. Credits from the new streak also accumulate on top.
 #   * A covered rest day keeps the streak ALIVE but is not itself a rowing day,
 #     so it does NOT increment the day streak and does NOT change the row streak.
 #
 # _streak_step applies one calendar day to the running state held in the globals
-# _ds (day streak), _rs (row streak) and _bank (rest-day balance). Every place
-# that walks the log — the two live views and the 2-week history — routes each
-# day through this one function so they can never disagree about a covered day.
+# _ds (day streak), _rs (row streak), _bank (rest-day balance),
+# _prev_streak_credits (credits earned by the last completed streak, carried
+# into the next one), and _cur_streak_credits (credits earned so far in the
+# current streak). Every place that walks the log — the live views and the
+# 2-week history — routes each day through this one function.
 _streak_step() {
   local count="$1"
   if [ "$count" -gt 0 ]; then
     if [ "$_ds" -eq 0 ]; then
+      # New streak: inherit credits earned during the most recently completed streak.
       _ds=1
       _rs="$count"
+      _bank=$((_prev_streak_credits + count - 1))
+      _cur_streak_credits=$((count - 1))
+      _prev_streak_credits=0
     else
       _ds=$((_ds + 1))
       _rs=$((_rs + count))
+      _bank=$((_bank + count - 1))
+      _cur_streak_credits=$((_cur_streak_credits + count - 1))
     fi
-    # Deposit one credit for every row beyond the first on this day.
-    _bank=$((_bank + count - 1))
   elif [ "$_ds" -gt 0 ] && [ "$_bank" -gt 0 ]; then
-    # Covered rest day: spend one credit, the streak holds. Balance stays >= 0.
+    # Covered rest day: spend one credit, the streak holds.
     _bank=$((_bank - 1))
+    _ds=$((_ds + 1))
   else
-    # Empty bank (or no active streak): the streak breaks and the bank resets.
+    # Empty bank (or no active streak): streak breaks.
+    if [ "$_ds" -gt 0 ]; then
+      # Save this streak's earned credits so the next streak can inherit them.
+      _prev_streak_credits=$_cur_streak_credits
+      _cur_streak_credits=0
+    fi
     _ds=0
     _rs=0
     _bank=0
@@ -49,17 +63,27 @@ _streak_step() {
 # comes AFTER it was banked, so we must never process the log backwards here.
 compute_streaks() {
   local rows_file="$1" as_of="$2"
-  local _ds=0 _rs=0 _bank=0
-  local prev_day="" cnt day d
+  local _ds=0 _rs=0 _bank=0 _prev_streak_credits=0 _cur_streak_credits=0
+  local prev_day="" cnt day d cur_year=""
   # Chronological list of "<count> <YYYY-MM-DD>" — one line per rowed calendar day.
   while read -r cnt day; do
     if [ -n "$prev_day" ]; then
       # Every calendar day strictly between two rowed days is a miss.
       d=$(date -j -v+1d -f "%Y-%m-%d" "$prev_day" "+%Y-%m-%d")
       while [[ "$d" < "$day" ]]; do
+        # Year boundary: streaks cannot cross 12/31 → 01/01.
+        if [ "${d:0:4}" != "$cur_year" ]; then
+          _ds=0; _rs=0; _bank=0; _prev_streak_credits=0; _cur_streak_credits=0
+          cur_year="${d:0:4}"
+        fi
         _streak_step 0
         d=$(date -j -v+1d -f "%Y-%m-%d" "$d" "+%Y-%m-%d")
       done
+    fi
+    # Year boundary on a rowed day (no gap days between Dec 31 and Jan 1).
+    if [ "${day:0:4}" != "$cur_year" ]; then
+      _ds=0; _rs=0; _bank=0; _prev_streak_credits=0; _cur_streak_credits=0
+      cur_year="${day:0:4}"
     fi
     _streak_step "$cnt"
     prev_day="$day"
@@ -70,12 +94,16 @@ compute_streaks() {
   if [ -n "$prev_day" ]; then
     d=$(date -j -v+1d -f "%Y-%m-%d" "$prev_day" "+%Y-%m-%d")
     while [[ "$d" < "$as_of" ]]; do
+      if [ "${d:0:4}" != "$cur_year" ]; then
+        _ds=0; _rs=0; _bank=0; _prev_streak_credits=0; _cur_streak_credits=0
+        cur_year="${d:0:4}"
+      fi
       _streak_step 0
       d=$(date -j -v+1d -f "%Y-%m-%d" "$d" "+%Y-%m-%d")
     done
   fi
 
-  echo "$_ds $_rs"
+  echo "$_ds $_rs $_bank $_cur_streak_credits"
 }
 
 # ── Subcommand dispatch ──────────────────────────────────────────────────────
@@ -165,7 +193,7 @@ if [ "${1:-}" = "post-slack" ]; then
 
   # Current streaks (day + row) under the rest-day bank rule. TIMESTAMP here is
   # the last logged row, so its date is the as-of day.
-  read -r DAY_STREAK COUNT_STREAK < <(compute_streaks "$ROWS_FILE" "${TIMESTAMP:0:10}")
+  read -r DAY_STREAK COUNT_STREAK _ _ < <(compute_streaks "$ROWS_FILE" "${TIMESTAMP:0:10}")
 
   echo "--- Row Stats (last logged row — no new entry made) ---"
   echo "Row #${ROW_NUM} of ${YEAR}"
@@ -365,6 +393,10 @@ fi
 DAYS_LEFT=$((DAYS_IN_YEAR - DAY_OF_YEAR))
 PCT_THROUGH=$((DAY_OF_YEAR * 100 / DAYS_IN_YEAR))
 
+# Current streaks — computed before the 2-week display so the active-streak
+# annotation on the final line can show the global (year-to-date) numbers.
+read -r DAY_STREAK COUNT_STREAK _ _ < <(compute_streaks "$ROWS_FILE" "${TIMESTAMP:0:10}")
+
 # Recent activity — last 14 calendar days
 echo ""
 echo "--- Last 2 Weeks ---"
@@ -374,18 +406,30 @@ first_doy=$(date -j -f "%Y-%m-%d" "$first_day" "+%-j")
 rows_up_to_before=$(awk -v d="$first_day" -v y="$YEAR" '$0 ~ "^"y"-" && $0 < d"T"' "$ROWS_FILE" | wc -l | tr -d ' ')
 running_total=$((rows_up_to_before - (first_doy - 1)))
 
+# Initialise the 2-week window's streak state from the global streak position
+# entering the first day of the window, so covered-rest-day bank numbers are
+# accurate rather than being based on a local-window approximation from zero.
+read -r _wini_ds _wini_rs _wini_bank _wini_cur < <(compute_streaks "$ROWS_FILE" "$first_day")
+
 # Streak state for the window walks through the same _streak_step rule as the
-# headline number, so a covered rest day is treated identically in both. The
-# bank is tallied within this 14-day window (credits earned earlier still cover
-# the miss they were banked before, which is all the rule requires).
+# headline number, so a covered rest day is treated identically in both.
 buffered_line=""
-_ds=0
-_rs=0
-_bank=0
+_ds=$_wini_ds
+_rs=$_wini_rs
+_bank=$_wini_bank
+_prev_streak_credits=0
+_cur_streak_credits=$_wini_cur
 best_day_streak=0
 best_row_streak=0
+_2wk_year=""
 for i in $(seq 13 -1 0); do
   day=$(date -j -v-${i}d -f "%Y-%m-%dT%H:%M:%S" "${TIMESTAMP:0:19}" "+%Y-%m-%d")
+  # Year boundary: streaks cannot cross 12/31 → 01/01.
+  if [ -n "$_2wk_year" ] && [ "${day:0:4}" != "$_2wk_year" ]; then
+    if [ -n "$buffered_line" ]; then echo "$buffered_line"; buffered_line=""; fi
+    _ds=0; _rs=0; _bank=0; _prev_streak_credits=0; _cur_streak_credits=0
+  fi
+  _2wk_year="${day:0:4}"
   dow=$(date -j -f "%Y-%m-%d" "$day" "+%a")
   count=$(grep -c "^${day}T" "$ROWS_FILE" || true)
   running_total=$((running_total + count - 1))
@@ -411,8 +455,8 @@ for i in $(seq 13 -1 0); do
       buffered_line=""
     fi
     _streak_step 0
-    YEL=$'\033[33m'; RST=$'\033[0m'
-    printf "%s %s %s~%s    %3d  (rest — streak held, bank %d)\n" "$dow" "$day" "$YEL" "$RST" "$running_total" "$_bank"
+    RED=$'\033[31m'; YEL=$'\033[33m'; RST=$'\033[0m'
+    printf "%s %s %s-%s~%s   %3d  (rest — streak held, bank %d)\n" "$dow" "$day" "$RED" "$YEL" "$RST" "$running_total" "$_bank"
   else
     # Missed day with an empty bank: the streak breaks. Flush buffered row line
     # with the ended streak + highscores appended.
@@ -432,11 +476,13 @@ for i in $(seq 13 -1 0); do
 done
 # Flush any remaining buffered line (active streak, no ending yet)
 if [ -n "$buffered_line" ]; then
-  echo "$buffered_line"
+  if [ "$DAY_STREAK" -gt 0 ]; then
+    GRN=$'\033[32m'; RST=$'\033[0m'
+    printf "%s  %s🔥 %dd %dr streak%s\n" "$buffered_line" "$GRN" "$DAY_STREAK" "$COUNT_STREAK" "$RST"
+  else
+    echo "$buffered_line"
+  fi
 fi
-
-# Current streaks (day + row) under the rest-day bank rule
-read -r DAY_STREAK COUNT_STREAK < <(compute_streaks "$ROWS_FILE" "${TIMESTAMP:0:10}")
 
 # Days rowed and missed this year
 DAYS_ROWED=$(grep "^${YEAR}-" "$ROWS_FILE" | cut -c1-10 | sort -u | wc -l | tr -d ' ')
