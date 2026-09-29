@@ -387,12 +387,22 @@ cmd_year() {
 }
 # ─────────────────────────────────────────────────────────────────────────────
 
-# cmd_last — print the most recent logged timestamp (bare `row` / `row last`).
+# last_logged — echoes the most recent logged timestamp (last NON-EMPTY line:
+# the log may end in blank lines, and early history is unknown (`??`) —
+# neither is a timestamp), or nothing when the log is empty/missing.
+last_logged() {
+  [ -f "$ROWS_FILE" ] || return 0
+  awk 'NF {last=$0} END {printf "%s", last}' "$ROWS_FILE"
+  return 0
+}
+
+# cmd_last — print the most recent logged timestamp (`row last`).
+# Bare `row` used to be rerouted here, which suppressed the whole report;
+# bare `row` is a dry-stats run again (plus a "Last run:" line), so only
+# the explicit `last` subcommand reaches this path.
 cmd_last() {
   local last=""
-  # Last NON-EMPTY line: the log may end in blank lines, and early history is
-  # unknown (`??`) — neither is a timestamp.
-  [ -f "$ROWS_FILE" ] && last=$(awk 'NF {last=$0} END {printf "%s", last}' "$ROWS_FILE")
+  last=$(last_logged)
   if [ -z "$last" ]; then
     echo "no rows logged yet" >&2
     exit 1
@@ -418,7 +428,7 @@ print_help() {
 row — rowing tracker with Slack integration
 
 USAGE:
-  row                          # Print the last logged row timestamp
+  row                          # Dry run with current time, plus the last logged run
   row [OPTIONS] [TIMESTAMP]
   row SUBCOMMAND
 
@@ -439,7 +449,7 @@ SUBCOMMANDS:
   year [YYYY]        Full-year day list plus each streak and its end day
 
 EXAMPLES:
-  row                              # Print the last logged row timestamp
+  row                              # Dry run with current time, plus the last logged run
   row --dry                        # Dry run with current time
   row 2026-07-26T19:20:05-07:00   # Log a row for specific timestamp
   row now                          # Log current time
@@ -464,11 +474,18 @@ elif [ "${1:-}" = "--replace" ]; then
   shift
 fi
 
-# Bare `row` (no flags, no args) prints the last logged timestamp; `--dry`
-# keeps the classic dry-stats run with the current time.
+# Bare `row` (no flags, no args) is a dry-stats run with the current time —
+# exactly what `--dry` prints — plus one added line showing the last logged
+# run. It never logs, commits, or posts: the same no-side-effect guarantee as
+# `--dry` (this restores the long-standing committed behaviour where bare
+# `row` defaulted to a dry run; see `--help`). `row last` still prints just
+# the timestamp for scripts that need it.
+SHOW_LAST_RUN=false
 if [ -z "${1:-}" ] && [ "$DRY_RUN" = false ]; then
-  cmd_last
-elif [ -z "${1:-}" ]; then
+  SHOW_LAST_RUN=true
+  DRY_RUN=true
+fi
+if [ -z "${1:-}" ]; then
   TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S%z" | sed 's/\([0-9][0-9]\)$/:\1/')
 elif [ "${1:-}" = "now" ]; then
   TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S%z" | sed 's/\([0-9][0-9]\)$/:\1/')
@@ -648,8 +665,9 @@ if [ -n "$buffered_line" ]; then
   fi
 fi
 
-# Days rowed and missed this year
-DAYS_ROWED=$(grep "^${YEAR}-" "$ROWS_FILE" | cut -c1-10 | sort -u | wc -l | tr -d ' ')
+# Days rowed and missed this year (grep finds nothing on an empty log — the
+# `|| true` keeps `set -euo pipefail` from killing the report before it prints).
+DAYS_ROWED=$(grep "^${YEAR}-" "$ROWS_FILE" | cut -c1-10 | sort -u | wc -l | tr -d ' ' || true)
 DAYS_MISSED=$((DAY_OF_YEAR - DAYS_ROWED))
 
 echo ""
@@ -664,6 +682,18 @@ elif [ "$DIFF" -lt 0 ]; then
   echo "📉 $((-DIFF)) rows behind pace (1/day)"
 else
   echo "📊 Exactly on pace (1/day)"
+fi
+
+# Bare-`row` addition (only): the last logged run, appended to the report —
+# never a replacement for it. Degrades to "(none logged yet)" on an empty
+# log instead of failing, so a bare `row` always prints the full report.
+if [ "$SHOW_LAST_RUN" = true ]; then
+  LAST_LOGGED_RUN=$(last_logged)
+  if [ -n "$LAST_LOGGED_RUN" ]; then
+    echo "Last run: ${LAST_LOGGED_RUN}"
+  else
+    echo "Last run: (none logged yet)"
+  fi
 fi
 
 # Post to Slack (skipped on --dry, --replace, or when creds file is missing)

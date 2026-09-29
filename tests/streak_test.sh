@@ -128,6 +128,68 @@ else
   echo "skip - case6b: real rows.txt not found"
 fi
 
+# ── Case 7: bare `row` prints the FULL report plus the last-run line ─────────
+# Regression pin for the cmd_last rerouting (bare `row` printed only a
+# timestamp and suppressed the whole report). A bare invocation must print
+# the full report exactly like --dry plus one "Last run: ..." line — and
+# must not log. Runs entirely in a fixture dir; a bare run is a dry run, so
+# the fixture log is never modified, committed, or posted to Slack.
+assert_contains() {
+  local name="$1" needle="$2" haystack="$3"
+  if grep -qF -- "$needle" <<<"$haystack"; then
+    echo "ok   - $name"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL - $name: output did not contain '$needle'"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+BARE_FIXTURE="2026-03-01T08:00:00-07:00${NL}2026-03-04T08:00:00-07:00${NL}"
+BARE_TMP="$(mktemp -d)"
+cp "$ROW_SH" "$BARE_TMP/row.sh"
+printf '%s' "$BARE_FIXTURE" > "$BARE_TMP/rows.txt"
+BARE_BEFORE="$(cat "$BARE_TMP/rows.txt")"
+BARE_OUT="$(cd "$BARE_TMP" && bash ./row.sh 2>&1)"
+DRY_OUT="$(cd "$BARE_TMP" && bash ./row.sh --dry 2026-03-04T08:00:00-07:00 2>&1)"
+LAST_OUT="$(cd "$BARE_TMP" && bash ./row.sh last 2>&1)"
+BARE_AFTER="$(cat "$BARE_TMP/rows.txt")"
+assert_contains "case7: bare prints the 2-week report" "--- Last 2 Weeks ---" "$BARE_OUT"
+assert_contains "case7: bare prints the stats report" "--- Row Stats ---" "$BARE_OUT"
+assert_contains "case7: bare prints the streak line" "Day streak:" "$BARE_OUT"
+assert_contains "case7: bare adds the last-run line" "Last run: 2026-03-04T08:00:00-07:00" "$BARE_OUT"
+assert_contains "case7: --dry keeps the full report" "--- Row Stats ---" "$DRY_OUT"
+if grep -qF "Last run:" <<<"$DRY_OUT"; then
+  echo "FAIL - case7: --dry must not print a Last run line"
+  FAIL=$((FAIL + 1))
+else
+  echo "ok   - case7: --dry prints no Last run line"
+  PASS=$((PASS + 1))
+fi
+if [ "$BARE_BEFORE" = "$BARE_AFTER" ]; then
+  echo "ok   - case7: bare run did not append to the log"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL - case7: bare run modified rows.txt"
+  FAIL=$((FAIL + 1))
+fi
+BARE_LINES="$(printf '%s\n' "$BARE_OUT" | wc -l | tr -d ' ')"
+if [ "$BARE_LINES" -gt 10 ]; then
+  echo "ok   - case7: bare output is a full report ($BARE_LINES lines, not one timestamp)"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL - case7: bare output is only $BARE_LINES lines (report suppressed?)"
+  FAIL=$((FAIL + 1))
+fi
+if [ "$LAST_OUT" = "2026-03-04T08:00:00-07:00" ]; then
+  echo "ok   - case7: row last still prints just the timestamp"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL - case7: row last printed '$LAST_OUT'"
+  FAIL=$((FAIL + 1))
+fi
+rm -rf "$BARE_TMP"
+
 echo ""
 echo "streak tests: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
