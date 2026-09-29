@@ -1,5 +1,8 @@
 # row_tracker — Changelog
 
+## 2026-08-20 — session 7bac7085
+
+Files: row.sh, tests/streak_test.sh
 ## 2026-08-04 — session 7ef9e136
 
 Files: rows.txt, row.sh

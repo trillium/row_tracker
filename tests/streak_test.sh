@@ -97,12 +97,18 @@ assert_streak "case3: two misses, one credit -> breaks on 2nd" "2026-03-04T08:00
 C4="2026-03-01T08:00:00-07:00${NL}2026-03-01T18:00:00-07:00${NL}2026-03-06T08:00:00-07:00${NL}"
 assert_streak "case4: balance floored at zero" "2026-03-06T08:00:00-07:00" "$C4" 1 1
 
-# ── Case 5: credits from a broken streak carry into the next one ──────────────
+# ── Case 5: no inheritance across a break (bank = rows - days) ────────────────
 # 03-01 has 3 rows (2 credits). 03-02, 03-03 covered (bank->0), 03-04 missed ->
-# break. The 2 credits earned on 03-01 are INHERITED by the new streak starting
-# on 03-05, so 03-06 is covered (bank->1) and the streak extends to 03-07.
+# break. The new streak starts fresh on 03-05 (bank 0), so 03-06 missed breaks
+# it again; 03-07 alone is a 1d 1r streak. Old credits never carry forward.
 C5="2026-03-01T06:00:00-07:00${NL}2026-03-01T12:00:00-07:00${NL}2026-03-01T18:00:00-07:00${NL}2026-03-05T08:00:00-07:00${NL}2026-03-07T08:00:00-07:00${NL}"
-assert_streak "case5: prev streak credits carry into next streak" "2026-03-07T08:00:00-07:00" "$C5" 3 2
+assert_streak "case5: no inheritance across break" "2026-03-07T08:00:00-07:00" "$C5" 1 1
+
+# ── Case 5b: future rows beyond as_of are ignored ─────────────────────────────
+# Same log as case 1 plus a future double on 03-10. Querying as of 03-04 must
+# ignore the future rows and still report 4d 4r.
+C5B="2026-03-01T08:00:00-07:00${NL}2026-03-01T18:00:00-07:00${NL}2026-03-02T08:00:00-07:00${NL}2026-03-04T08:00:00-07:00${NL}2026-03-10T08:00:00-07:00${NL}2026-03-10T18:00:00-07:00${NL}"
+assert_streak "case5b: future rows ignored" "2026-03-04T08:00:00-07:00" "$C5B" 4 4
 
 # ── Case 6: the captain's real 2026-08-10 -> 2026-08-14 sequence is unbroken ──
 # Self-contained tail: 08-10 (2 rows, banks 1), 08-11, 08-12, 08-13 missed
